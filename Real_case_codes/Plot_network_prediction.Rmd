@@ -1,0 +1,667 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+mlizhang@gmail.com
+UCSFairrR01R21!
+
+list of common TAAs:
+CEA
+CA 19-9
+CA 72-4
+Claudin 18.2 *
+HER2 *
+NY-ESO-1
+MAGE class (as for HCC, not entirely specific but may be expressed)
+
+*approved therapy targeting it
+
+This paper has more listed and also may be of interest as they identified T cell responses: https://jitc.bmj.com/content/10/12/e005200
+
+list of associated infections:
+H pylori (bacterial)
+EBV
+possibly related but not clearly causal - HBV, HPV, CMV
+# Read the prediction results
+```{r}
+library(tidyverse)
+library(NAIR)
+```
+```{r}
+tissue <- read_csv("./Apexigen_data/PBMC_tumor_metadata_TCR_match.csv") %>% mutate(timepoint_sample = paste(sample, timepoint,sep = "_"), barcode = paste(TRB_barcode,sample, sep = "_")) 
+```
+```{r}
+apexigen_pred <- read_csv("./Apexigen_tumor_paired_train_all_pred_res_IEDB_McPAS_VDJdb_081_acc_042226.csv")
+```
+
+
+```{r}
+Apexigen_meta <- read_csv('./Apexigen_data/Apexigen_obs_metadata_for_integration_real_case.csv')
+```
+
+```{r}
+all_3_datasets_peptide_type <-  readr::read_csv("all_3_datasets_peptide_type.csv") %>% filter(!is.na(Epitope_type))
+```
+```{r}
+all_3_datasets_peptide_type_viral <- all_3_datasets_peptide_type %>% filter(str_detect(str_to_lower(Epitope_type),"hepatitis b|hepatitis c|barr"))
+```
+
+```{r}
+all_3_datasets_peptide_type_tumor <- all_3_datasets_peptide_type %>% filter(str_detect(str_to_lower(Epitope_type),"mela|cancer|tyrosinase|tumor|syt-ssx2|mage|ny-eso|tyrosine|cea|her2|Claudin"))
+```
+
+
+```{r}
+all_3_datasets_peptide_type %>% filter(str_detect(Epitope_type,"MAGE"))
+
+all_3_datasets_peptide_type %>% filter(peptide_cat == "Tumor")
+```
+
+```{r}
+apexigen_pred$barcode <- rep(Apexigen_meta$...1, 1337)
+apexigen_pred <- apexigen_pred %>% left_join(all_3_datasets_peptide_type, join_by("Epitope"))
+```
+```{r}
+apexigen_pred %>% filter(str_detect(Epitope_type,"NY-ESO")) %>% filter(predicted_binding_probability > 0.5)
+```
+```{r}
+apexigen_pred %>% filter(str_detect(Epitope_type,"MAGE")) %>% filter(predicted_binding_probability > 0.5)
+```
+
+```{r}
+apexigen_pred <- apexigen_pred %>% filter(!is.na(Epitope_type))
+```
+```{r}
+res_tumor <- apexigen_pred %>% filter(Epitope %in%all_3_datasets_peptide_type_tumor$Epitope)
+res_tumor_high_prob <- res_tumor %>% group_by(barcode) %>% arrange(desc(predicted_binding_probability)) %>% filter(row_number() == 1) %>% filter(predicted_binding_probability > 0.6) %>% filter(str_length(Epitope_type) > 8)
+res_tumor_high_prob$peptide_cat <- "Tumor"
+```
+```{r}
+res_viral <- apexigen_pred %>% filter(Epitope %in%all_3_datasets_peptide_type_viral$Epitope)
+res_viral_high_prob <- res_viral %>% group_by(barcode) %>% arrange(desc(predicted_binding_probability)) %>% filter(row_number() == 1) %>% filter(predicted_binding_probability > 0.8) %>% filter(str_length(Epitope_type) > 8)
+res_viral_high_prob$peptide_cat <- "Viral"
+```
+```{r}
+length(unique(res_viral_high_prob$barcode) )
+```
+```{r}
+tumor_viral <- rbind(res_tumor_high_prob,res_viral_high_prob) %>% group_by(barcode) %>% arrange(desc(predicted_binding_probability)) %>% filter(row_number() == 1)
+```
+```{r}
+table(tumor_viral$peptide_cat)
+```
+```{r}
+others_type <- apexigen_pred %>% group_by(barcode) %>% arrange(desc(predicted_binding_probability)) %>% filter(row_number() == 1) %>% filter(!(barcode %in% tumor_viral$barcode))
+others_type$peptide_cat <- "others"
+```
+
+```{r}
+dat_network <- rbind(tumor_viral,others_type)
+```
+```{r}
+dat_network <- dat_network %>% filter(!str_detect(patient, "HD"))
+```
+```{r}
+table(dat_network$patient)
+```
+
+```{r}
+res_tumor_selected_virus <- buildNet(dat_network,
+                                              seq_col = "TRB_cdr3", #
+                              color_nodes_by = c("peptide_cat"),
+                              min_seq_length = 1,
+                              dist_cutoff = 0,
+                              output_dir = "./network_res",
+                              drop_isolated_nodes = TRUE,
+                              dist_type = "hamming",
+                              stats_to_include = "all",
+                              node_stats = TRUE,
+                              cluster_stats = TRUE,
+                              plots = TRUE
+                )
+
+res_tumor_selected_virus <- readRDS("./network_res/MyRepSeqNetwork.rds")
+```
+```{r}
+table(dat_network$peptide_cat)
+```
+
+```{r}
+write_csv(dat_network,"dat_network.csv")
+```
+
+
+```{r}
+table(tissue$tissue)
+```
+
+```{r}
+
+tissue_barcode <- tissue %>% filter(barcode %in% res_tumor_selected_virus$node_data$barcode)
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>% mutate(timepoint_sample = paste(sample, timepoint,sep = "_")) %>% left_join(tissue_barcode, join_by("barcode"))
+```
+
+```{r}
+write.csv(res_tumor_selected_virus$node_data,"network_results_Apexigen.csv")
+```
+
+
+```{r}
+
+
+
+length(unique(res_tumor_selected_virus$node_data$barcode))
+table(tissue$tissue)
+table(res_tumor_selected_virus$node_data$timepoint)
+table(res_tumor_selected_virus$node_data$timepoint)
+```
+
+```{r}
+addPlots(res_tumor_selected_virus,color_nodes_by = "cluster_id")
+```
+
+```{r}
+Apexigen_exact_match_IEDB_McPAS_VDJdb_epitope <- read_csv("./Apexigen_match_full_IEDB_McPAS_VDJdb_all_data.csv") %>% select(CDR3,Epitope) %>% unique() %>% mutate(CDR_epitope = paste(CDR3,Epitope,sep = "_"))
+Apexigen_exact_match_IEDB_McPAS_VDJdb_epitope
+```
+```{r}
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>% mutate(exact_match = ifelse(TCR_Epitope_pair %in% Apexigen_exact_match_IEDB_McPAS_VDJdb_epitope$CDR_epitope, "Match",NA))
+```
+
+```{r}
+library(igraph)
+```
+```{r}
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>% mutate(color_code = ifelse(peptide_cat == "Tumor","red",ifelse(peptide_cat == "Viral","blue","lightgrey")))
+g <- res_tumor_selected_virus$igraph
+V(g)$color <- res_tumor_selected_virus$node_data$color_code
+# V(g)$label <- NA
+plot(
+  g,
+  layout = res_tumor_selected_virus$plots$graph_layout,          # Use our coordinates
+  vertex.size = 1,
+  vertex.color = V(g)$color,
+  vertex.label = NA,
+  # edge.color = "gray40",
+)
+
+
+
+```
+
+```{r}
+pdf("tumor_viral_others.pdf", width = 16, height = 10)
+# shared$plots$graph_layout
+
+g <- res_tumor_selected_virus$igraph
+col_code <- res_tumor_selected_virus$node_data$peptide_cat
+# col_pal <- colorRampPalette(c( "red", "#007FFF", "grey"))
+col_code <- as.character(col_code)
+# col_code <- factor(col_code)
+v_color_factor <- as.factor(col_code)
+
+pal <- c("lightgrey","red","green")
+names(pal) <- levels(v_color_factor)
+ver_color <- pal[v_color_factor]
+unique(ver_color)
+# ver_color[is.na(ver_color)] <- "white"
+par(mar = c(1, 1, 1, 1))
+
+plot(g, layout = as.matrix(res_tumor_selected_virus$plots$graph_layout), vertex.label = NA, vertex.size = 3, vertex.color = ver_color, main = "Prediction")
+dev.off()
+```
+```{r}
+table(col_code, useNA="always")
+dim(as.matrix(res_tumor_selected_virus$plots$graph_layout))
+```
+```{r}
+table(col_code, useNA="always")
+```
+
+```{r}
+res_tumor_selected_virus$node_data$peptide_cat_col <- ifelse(res_tumor_selected_virus$node_data$peptide_cat != "others",res_tumor_selected_virus$node_data$peptide_cat,NA)
+```
+
+```{r}
+addPlots(res_tumor_selected_virus,color_nodes_by = "peptide_cat_col")
+```
+```{r}
+addPlots(res_tumor_selected_virus,color_nodes_by = "exact_match")
+```
+```{r}
+addPlots(res_tumor_selected_virus,color_nodes_by = "patient")
+```
+
+```{r}
+res_tumor_selected_virus$node_data %>% group_by(cluster_id) %>% summarise(n_size = n())
+```
+```{r}
+res_tumor_selected_virus$node_data %>% filter(peptide_cat_col == "Tumor") %>% group_by(cluster_id) %>% summarise(n_size = n())
+```
+```{r}
+res_tumor_selected_virus$node_data %>% filter(cluster_id == 4) 
+```
+
+```{r}
+addPlots(res_tumor_selected_virus, color_nodes_by = "cluster_id")
+```
+
+
+```{r}
+res_tumor_selected_virus$node_data %>% filter(!is.na(exact_match))
+```
+
+```{r}
+
+res_tumor_selected_virus_new <- buildNet(res_tumor_selected_virus$node_data,
+                                              seq_col = "TRB_cdr3", #
+                              color_nodes_by = c("peptide_cat_col","exact_match","patient"),
+                              min_seq_length = 1,
+                              dist_cutoff = 0,
+                              output_dir = "./network_res",
+                              drop_isolated_nodes = TRUE,
+                              dist_type = "hamming",
+                              stats_to_include = "all",
+                              node_stats = TRUE,
+                              cluster_stats = TRUE,
+                              plots = TRUE,
+                              # color_scheme = "plasma-1"
+                )
+```
+```{r}
+# hepatitis b|hepatitis c|barr
+# "mela|cancer|tyrosinase|tumor|syt-ssx2|mage|ny-eso|tyrosine|cea|her2|Claudin"
+dat_network <- dat_network %>%
+  mutate(
+    peptide_class = case_when(
+      str_detect(str_to_lower(Epitope_type), "hepatitis b") ~ "Hepatitis B",
+      str_detect(str_to_lower(Epitope_type), "hepatitis c") ~ "Hepatitis C",
+      str_detect(str_to_lower(Epitope_type), "barr") ~ "Epstein Barr virus",
+      str_detect(str_to_lower(Epitope_type), "mela") ~ "Melanoma",
+      str_detect(str_to_lower(Epitope_type), "testis antigen 1_Homo sapiens") ~ "Cancer/testis antigen",
+      str_detect(str_to_lower(Epitope_type), "tumor antigen p53") ~ "Cellular tumor antigen p53",
+      str_detect(str_to_lower(Epitope_type), "mage") ~ Epitope_type,
+      str_detect(str_to_lower(Epitope_type), "ny-eso") ~ "NY-ESO",
+      str_detect(str_to_lower(Epitope_type), "tyrosi") ~ "Tyrosine",
+      str_detect(str_to_lower(Epitope_type), "her2") ~ "HER2",
+      str_detect(str_to_lower(Epitope_type), "cea") ~ "CEA",
+      TRUE ~ NA_character_
+    )
+  )
+table(dat_network$peptide_cat,dat_network$Epitope_type)
+table(dat_network$Epitope_type)
+table(dat_network$peptide_class)
+```
+```{r}
+# cell_map = data_frame('CD4T_naive2':'CD4T_naive',
+#  'CD4T_naive1':'CD4T_naive',
+#  'CD8_GrH':'CD8T_GrH',
+#  'CD4T_naive3':'CD4T_naive',
+#  'Treg':'Treg',
+#  'CD8T_prolif':'CD8T_prolif',
+#  'CD8T_GrK':'CD8T_GrK',
+#  'Treg1':'Treg',
+#  'CD8T_GrB':'CD8T_GrB',
+#  'CD4_Tnaive1':'CD4T_naive',
+#  'CD8T_GrH':'CD8T_GrH',
+#  'CD4_Tfh-like':'CD4_Tfh-like',
+#  'Treg2':'Treg',
+#  'gd_Tcell': 'gd_Tcell',
+#  'MAIT':'MAIT')
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>%
+  mutate(
+    final_cell_type = case_when(
+      str_detect((cell_type_scvi), "CD4T_naive2") ~ "CD4T_naive",
+      str_detect((cell_type_scvi), "CD4T_naive1") ~ "CD4T_naive",
+      str_detect((cell_type_scvi), "CD8_GrH") ~ "CD8T_GrH",
+      str_detect((cell_type_scvi), "CD4T_naive3") ~ "CD4T_naive",
+      str_detect((cell_type_scvi), "Treg") ~ "Treg",
+      str_detect((cell_type_scvi), "CD8T_prolif") ~ "CD8T_prolif",
+      str_detect((cell_type_scvi), "Treg1") ~ "Treg",
+      str_detect((cell_type_scvi), "CD8T_GrK") ~ "CD8T_GrK",
+      str_detect((cell_type_scvi), "CD4_Tnaive1") ~ "CD4T_naive",
+      str_detect((cell_type_scvi), "CD8T_GrH") ~ "CD8T_GrH",
+      str_detect((cell_type_scvi), "CD4_Tfh-like") ~ "CD4_Tfh-like",
+      str_detect((cell_type_scvi), "Treg2") ~ "Treg",
+      str_detect((cell_type_scvi), "gd_Tcell") ~ "gd_Tcell",
+      str_detect((cell_type_scvi), "MAIT") ~ "MAIT",
+      str_detect((cell_type_scvi), "CD8T_GrB") ~ "CD8T_GrB",
+      TRUE ~ NA_character_
+    )
+  )
+
+table(res_tumor_selected_virus$node_data$final_cell_type)
+```
+```{r}
+addPlots(res_tumor_selected_virus,color_nodes_by = "final_cell_type")
+```
+```{r}
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>% group_by(cluster_id) %>% mutate(status_check = paste(sort(unique(timepoint)), collapse = "_")) %>% mutate(status_res = case_when(
+  status_check == "pre_CD40" ~ "Pre-existing",
+  status_check == "post_CD40_pre_CD40" ~ "Persistent",
+  status_check == "post_CD40" ~ "Induced",
+  status_check == "follow_up_post_CD40_post_CD40" ~ "Induced",
+  status_check == "follow_up" ~ "Induced",
+  status_check == "follow_up_post_CD40_pre_CD40" ~ "Persistent",
+  status_check == "pre_CD40_surgery" ~ "Persistent",
+  status_check == "post_CD40_surgery" ~ "Persistent",
+  status_check == "follow_up_post_CD40_pre_CD40" ~ "Persistent",
+  status_check == "follow_up_post_CD40_pre_CD40_surgery" ~ "Persistent",
+  status_check == "follow_up_post_CD40_surgery" ~ "Induced",
+  status_check == "follow_up_pre_CD40_surgery" ~ "Persistent",
+  status_check == "follow_up_pre_CD40" ~ "Persistent",
+  status_check == "follow_up_surgery" ~ "Induced",
+  status_check == "surgery" ~ "Induced",
+  status_check == "post_CD40_pre_CD40_surgery" ~ "Persistent",
+  status_check == "follow_up_post_CD40" ~ "Induced",
+))
+
+table(res_tumor_selected_virus$node_data$status_res, useNA = "always")
+table(res_tumor_selected_virus$node_data$status_check, useNA = "always")
+```
+```{r}
+addPlots(res_tumor_selected_virus,color_nodes_by = "status_res")
+```
+```{r}
+res_tumor_selected_virus$node_data %>% group_by(cluster_id) %>% mutate(cluster_size = n())
+```
+```{r}
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>% mutate(tissue = ifelse((sample == "05_pre") & (timepoint == "pre_CD40"),"PBMC","Tumor"))
+```
+```{r}
+addPlots(res_tumor_selected_virus,color_nodes_by = c("tissue","status_res","timepoint","final_cell_type"))
+```
+```{r}
+
+
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>% mutate(timepoint_bi = ifelse(str_detect(timepoint,"pre"),"Pre","Post")) 
+res_tumor_selected_virus$node_data$timepoint_bi <- factor(res_tumor_selected_virus$node_data$timepoint_bi, levels = c("Pre","Post")) 
+res_tumor_selected_virus$node_data$status_res <- factor(res_tumor_selected_virus$node_data$status_res, levels = c("Pre-existing","Induced","Persistent")) 
+pdf("network_plot_all.pdf")
+addPlots(res_tumor_selected_virus,color_nodes_by = c("tissue","status_res","timepoint_bi","final_cell_type"))
+dev.off()
+
+saveRDS(res_tumor_selected_virus,"res_tumor_selected_virus_042826.RDS")
+```
+
+```{r}
+test <- res_tumor_selected_virus$node_data %>% mutate(tissue = ifelse((sample == "05_pre") & (timepoint == "pre_CD40"),"PBMC","Tumor"))
+table(test$tissue)
+```
+```{r}
+table(tissue_barcode$timepoint_sample,tissue_barcode$tissue)
+```
+```{r}
+res_tumor_selected_virus$node_data %>% filter((sample == "05_pre") & (timepoint == "pre_CD40"))
+```
+
+```{r}
+sta_res <- as.data.frame(table(dat_network$peptide_class))
+sta_res
+```
+
+
+```{r}
+res <- apexigen_pred %>% group_by(barcode) %>% arrange(desc(predicted_binding_probability)) %>% filter(row_number() == 1)
+```
+```{r}
+res <- res %>% mutate(predict_08 = (predicted_binding_probability >0.8))
+```
+```{r}
+res %>% filter(peptide_cat == "Tumor")
+```
+
+```{r}
+table(res$predict_08)
+table(res$Epitope_type,res$peptide_cat)
+```
+```{r}
+Apexigen_tumor_paired_train_all_peptide_no_NA_yes_peptide_type_tumor_unique_n_HD_high_conf <- read_csv("Apexigen_tumor_paired_train_all_peptide_no_NA_yes_peptide_type_tumor_unique_n_HD_high_conf_for_network_plot.csv")
+```
+```{r}
+Apexigen_tumor_paired_train_all_peptide_no_NA_yes_peptide_type_tumor_unique_n_HD_high_conf <- Apexigen_tumor_paired_train_all_peptide_no_NA_yes_peptide_type_tumor_unique_n_HD_high_conf %>% mutate(predicted_binding_probability)
+```
+
+```{r}
+library(NAIR)
+```
+
+```{r}
+res <- buildNet(Apexigen_tumor_paired_train_all_peptide_no_NA_yes_peptide_type_tumor_unique_n_HD_high_conf,
+                                              seq_col = "TRB_cdr3", #
+                              color_nodes_by = c("peptide_cat","category"),
+                              min_seq_length = 1,
+                              dist_cutoff = 0,
+                              output_dir = "./network_res",
+                              drop_isolated_nodes = TRUE,
+                              dist_type = "hamming",
+                              stats_to_include = "all",
+                              node_stats = TRUE,
+                              cluster_stats = TRUE,
+                              plots = TRUE
+                )
+```
+```{r}
+Apexigen_tumor_paired_train_all_peptide_no_NA_yes_peptide_type_tumor_unique_n_HD_high_conf %>% filter(str_detect(Epitope_type,"Bar"))
+```
+```{r}
+res_tumor_selected_virus$node_data$cell
+```
+```{r}
+my_manual_color <- c('CD4T_naive'= '#1f77b4',
+ 'CD4_Tfh-like'= '#ff7f0e',
+ 'CD8T_GrB'= '#2ca02c',
+ 'CD8T_GrH'= '#d62728',
+ 'CD8T_GrK'= '#9467bd',
+ 'CD8T_prolif'= '#8c564b',
+ 'MAIT'= '#e377c2',
+ 'Treg'= '#7f7f7f',
+ 'gd_Tcell'= '#bcbd22')
+```
+
+
+```{r}
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>%
+  mutate(
+    final_cell_type = case_when(
+      str_detect((cell_type_scvi), "CD4T_naive2") ~ "CD4T_naive",
+      str_detect((cell_type_scvi), "CD4T_naive1") ~ "CD4T_naive",
+      str_detect((cell_type_scvi), "CD8_GrH") ~ "CD8T_GrH",
+      str_detect((cell_type_scvi), "CD4T_naive3") ~ "CD4T_naive",
+      str_detect((cell_type_scvi), "Treg") ~ "Treg",
+      str_detect((cell_type_scvi), "CD8T_prolif") ~ "CD8T_prolif",
+      str_detect((cell_type_scvi), "Treg1") ~ "Treg",
+      str_detect((cell_type_scvi), "CD8T_GrK") ~ "CD8T_GrK",
+      str_detect((cell_type_scvi), "CD4_Tnaive1") ~ "CD4T_naive",
+      str_detect((cell_type_scvi), "CD8T_GrH") ~ "CD8T_GrH",
+      str_detect((cell_type_scvi), "CD4_Tfh-like") ~ "CD4_Tfh-like",
+      str_detect((cell_type_scvi), "Treg2") ~ "Treg",
+      str_detect((cell_type_scvi), "gd_Tcell") ~ "gd_Tcell",
+      str_detect((cell_type_scvi), "MAIT") ~ "MAIT",
+      str_detect((cell_type_scvi), "CD8T_GrB") ~ "CD8T_GrB",
+      TRUE ~ NA_character_
+    )
+  )
+
+```
+```{r}
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>%
+  mutate(
+    final_cell_type_color = case_when(
+       str_detect(final_cell_type, 'CD4T_naive')~ '#1f77b4',
+       str_detect(final_cell_type,  'CD4_Tfh-like')~ '#ff7f0e',
+       str_detect(final_cell_type,  'CD8T_GrB')~ '#2ca02c',
+       str_detect(final_cell_type,  'CD8T_GrH')~ '#d62728',
+       str_detect(final_cell_type,  'CD8T_GrK')~ '#9467bd',
+       str_detect(final_cell_type,  'CD8T_prolif')~ '#8c564b',
+       str_detect(final_cell_type,  'MAIT')~ '#e377c2',
+       str_detect(final_cell_type,  'Treg')~ '#7f7f7f',
+       str_detect(final_cell_type,  'gd_Tcell')~ '#bcbd22',
+      TRUE ~ NA_character_
+    )
+  )
+```
+
+```{r}
+library(igraph)
+library(ggraph)
+network_celltype_graph <- res_tumor_selected_virus$igraph
+network_node_dat <- res_tumor_selected_virus$node_data
+network_node_dat$ix <- c(1:nrow(res_tumor_selected_virus$node_data))
+network_graph_edge_color <- layer_data(res_tumor_selected_virus$plots$exact_match, 1)
+network_graph_node_color <- layer_data(res_tumor_selected_virus$plots$exact_match, 2)
+
+cl_order <- network_node_dat %>% select(final_cell_type_color,final_cell_type) %>% unique() %>% arrange(final_cell_type)
+x_limits <- range(network_graph_node_color$x)
+y_limits <- range(network_graph_node_color$y)
+
+
+jpeg("cell_type_plot_correct_color.jpeg",width = 7, height = 7, units = "in", res = 300)
+ggraph(network_celltype_graph, layout= res_tumor_selected_virus$plots$graph_layout ) + geom_edge_link(edge_width = 0.1, color = "grey") + geom_node_point(size = 0.5, aes(color = res_tumor_selected_virus$node_data$final_cell_type_color))  +
+    scale_color_identity(guide = "legend", name = paste("Celltype"),
+      # 1. Define the physical order of colors you want in the legend
+      breaks = cl_order$final_cell_type_color, 
+      
+      # 2. Match the labels to the exact order of the breaks above
+      labels = cl_order$final_cell_type) + coord_cartesian(xlim = x_limits, ylim = y_limits)+ guides(color = guide_legend(override.aes = list(size = 4))) + theme_void()
+ dev.off()
+# ggsave("cell_type_plot_correct_color.pdf", cell_type_plot_correct_color,width = 7, height = 7, units = "in")
+
+```
+```{r}
+res_tumor_selected_virus$node_data %>% filter(peptide_cat == "Tumor") %>% group_by(Epitope) %>% mutate(n_epitope = n()) %>% filter(cluster_id == 4)
+```
+```{r}
+res_tumor_selected_virus$node_data %>% filter(peptide_cat == "Viral") %>% filter(cluster_id %in% c(1,2,3,4,5,6,7)) %>% select(cluster_id, Epitope) %>% unique() %>% arrange(cluster_id)
+```
+
+```{r}
+top_viral_epitope <- res_tumor_selected_virus$node_data %>% filter(peptide_cat == "Viral") %>% group_by(Epitope) %>% mutate(n_epitope = n()) %>% arrange(desc(n_epitope))
+table(top_viral_epitope$Epitope)
+
+top_pep_viral_plot_list <- c("AVFDRKSDAK","FLYALALLL","GLCTLVAML","RTQSPRRR","YVLDHLIVV")
+```
+
+```{r}
+top_tumor_epitope <- res_tumor_selected_virus$node_data %>% filter(peptide_cat == "Tumor") %>% group_by(Epitope) %>% mutate(n_epitope = n()) %>% arrange(desc(n_epitope))
+table(top_tumor_epitope$Epitope)
+
+top_pep_tumor_plot_list <- c("KVPRNQDWL","ALIHHNTHL","ESITGSLGPLL","RLPSSADVEF")
+
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>% mutate(top_pep_tumor_viral_plot_list = ifelse(Epitope %in% top_pep_tumor_plot_list,paste(Epitope,"Tumor",sep = "_"),ifelse(Epitope %in% top_pep_viral_plot_list,paste(Epitope,"Viral",sep = "_"),NA)))  %>% mutate(top_pep_tumor_plot_list = ifelse(Epitope %in% top_pep_tumor_plot_list,paste(Epitope,"Tumor",sep = "_"),NA))
+
+table(res_tumor_selected_virus$node_data$top_pep_tumor_viral_plot_list)
+```
+
+```{r}
+check_res <- addPlots(res_tumor_selected_virus,color_nodes_by = c("top_pep_tumor_viral_plot_list","top_pep_tumor_plot_list","outcome"))
+```
+```{r}
+pdf("all_peptide_labels_and_viral.pdf")
+  check_res
+dev.off()
+```
+
+```{r}
+network_graph_node_color_tumor_viral <- layer_data(check_res$plots$top_pep_tumor_viral_plot_list, 2)
+network_graph_node_color_tumor_viral
+```
+```{r}
+peptide_color_list = data.frame(peptide = check_res$node_data$top_pep_tumor_viral_plot_list, color = network_graph_node_color_tumor_viral$colour) %>% unique()
+```
+```{r}
+peptide_color_list$peptide
+peptide_color_list$color
+```
+
+
+
+```{r}
+table(res_tumor_selected_virus$node_data$peptide_cat_col)
+table(res_tumor_selected_virus$node_data$top_pep_tumor_plot_list)
+```
+
+
+```{r}
+res_tumor_selected_virus$node_data %>% filter(peptide_cat == "Tumor") %>% arrange(cluster_id)
+```
+
+```{r}
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>%
+  mutate(
+    tumor_peptide_color = case_when(
+      is.na(top_pep_tumor_plot_list) ~ "grey",
+       # str_detect(top_pep_tumor_plot_list, 'RTQSPRRR_Viral')~ '#DB72FB',
+       str_detect(top_pep_tumor_plot_list,  'ESITGSLGPLL_Tumor')~ '#93AA00',
+       # str_detect(top_pep_tumor_plot_list,  'AVFDRKSDAK_Viral')~ '#D39200',
+       # str_detect(top_pep_tumor_plot_list,  'YVLDHLIVV_Viral')~ '#FF61C3',
+       str_detect(top_pep_tumor_plot_list,  'KVPRNQDWL_Tumor')~ '#00B9E3',
+       # str_detect(top_pep_tumor_plot_list,  'FLYALALLL_Viral')~ '#00BA38',
+       str_detect(top_pep_tumor_plot_list,  'RLPSSADVEF_Tumor')~ '#619CFF',
+       # str_detect(top_pep_tumor_plot_list,  'GLCTLVAML_Viral')~ '#00C19F',
+       str_detect(top_pep_tumor_plot_list,  'ALIHHNTHL_Tumor')~ '#F8766D',
+      TRUE ~ NA_character_
+    )
+  )
+
+tumor_peptide_color_list_no_NA <- peptide_color_list %>% drop_na() %>% filter(str_detect(peptide,"Tumor")) %>% arrange(peptide)
+# cl_order <- network_node_dat %>% select(final_cell_type_color,final_cell_type) %>% unique() %>% arrange(final_cell_type)
+
+
+jpeg("top_tumor_peptide_plot.jpeg",width = 7, height = 7, units = "in", res = 300)
+ggraph(network_celltype_graph, layout= res_tumor_selected_virus$plots$graph_layout ) + geom_edge_link(edge_width = 0.1, color = "grey") + geom_node_point(size = 0.5, aes(color = res_tumor_selected_virus$node_data$tumor_peptide_color))  +
+    scale_color_identity(guide = "legend", name = paste("Peptie"),
+      # 1. Define the physical order of colors you want in the legend
+      breaks = tumor_peptide_color_list_no_NA$color, 
+      
+      # 2. Match the labels to the exact order of the breaks above
+      labels = tumor_peptide_color_list_no_NA$peptide) + coord_cartesian(xlim = x_limits, ylim = y_limits)+ guides(color = guide_legend(override.aes = list(size = 4))) + theme_void()
+# pdf("./top_tumor_peptide_plot.pdf", width = 7, height = 7)
+# top_tumor_peptide_plot
+dev.off()
+```
+```{r}
+pdf("top_tumor_viral_peptide_plot.pdf", check_res$plot$top_pep_tumor_viral_plot_list, width = 7, height = 7)
+check_res$plot$top_pep_tumor_viral_plot_list
+dev.off()
+```
+
+```{r}
+res_tumor_selected_virus$node_data %>% write.csv("network_expanded_cluster_id.csv")
+```
+
+```{r}
+res_tumor_selected_virus$node_data <- res_tumor_selected_virus$node_data %>%
+  mutate(
+    viral_peptide_color = case_when(
+      is.na(top_pep_tumor_viral_plot_list) ~ "grey",
+       str_detect(top_pep_tumor_viral_plot_list, 'RTQSPRRR_Viral')~ '#DB72FB',
+       # str_detect(top_pep_tumor_plot_list,  'ESITGSLGPLL_Tumor')~ '#93AA00',
+       str_detect(top_pep_tumor_viral_plot_list,  'AVFDRKSDAK_Viral')~ '#D39200',
+       str_detect(top_pep_tumor_viral_plot_list,  'YVLDHLIVV_Viral')~ '#FF61C3',
+       # str_detect(top_pep_tumor_plot_list,  'KVPRNQDWL_Tumor')~ '#00B9E3',
+       str_detect(top_pep_tumor_viral_plot_list,  'FLYALALLL_Viral')~ '#00BA38',
+       # str_detect(top_pep_tumor_plot_list,  'RLPSSADVEF_Tumor')~ '#619CFF',
+       str_detect(top_pep_tumor_viral_plot_list,  'GLCTLVAML_Viral')~ '#00C19F',
+       # str_detect(top_pep_tumor_plot_list,  'ALIHHNTHL_Tumor')~ '#F8766D',
+      TRUE ~ NA_character_
+    )
+  )
+
+viral_peptide_color_list_no_NA <- peptide_color_list %>% drop_na() %>% filter(str_detect(peptide,"Viral")) %>% arrange(peptide)
+# cl_order <- network_node_dat %>% select(final_cell_type_color,final_cell_type) %>% unique() %>% arrange(final_cell_type)
+
+
+jpeg("top_viral_peptide_plot.jpeg",width = 7, height = 7, units = "in", res = 300)
+ggraph(network_celltype_graph, layout= res_tumor_selected_virus$plots$graph_layout ) + geom_edge_link(edge_width = 0.1, color = "grey") + geom_node_point(size = 0.5, aes(color = res_tumor_selected_virus$node_data$viral_peptide_color))  +
+    scale_color_identity(guide = "legend", name = paste("Peptie"),
+      # 1. Define the physical order of colors you want in the legend
+      breaks = viral_peptide_color_list_no_NA$color, 
+      
+      # 2. Match the labels to the exact order of the breaks above
+      labels = viral_peptide_color_list_no_NA$peptide) + coord_cartesian(xlim = x_limits, ylim = y_limits)+ guides(color = guide_legend(override.aes = list(size = 4))) + theme_void()
+# pdf("./top_tumor_peptide_plot.pdf", width = 7, height = 7)
+# top_tumor_peptide_plot
+dev.off()
+```
+
