@@ -544,17 +544,17 @@ def assemble_features(*split_arrays, normalize: bool = True):
 
 
 # =============================================================================
-# Residual classifier architectures
+# Residual MLP classifier
 # =============================================================================
 
-def build_residual_classifier(
+def build_residual_mlp(
     input_dim: int,
     dropout_rate: float = 0.3,
     l1_reg: float = 1e-5,
     l2_reg: float = 1e-4,
-    name: str = "residual_classifier",
+    name: str = "residual_mlp",
 ) -> keras.Model:
-    """Large residual network: 512→512→256→256→128→64→sigmoid.
+    """Residual multilayer perceptron: 512→512→256→256→128→64→sigmoid.
 
     Used for all integration models (ED, TCR-AE, mvTCR, Tessa).
     """
@@ -587,15 +587,15 @@ def build_residual_classifier(
     return Model(inp, out, name=name)
 
 
-def build_small_residual_classifier(
+def build_small_residual_mlp(
     input_dim: int,
     width: int = 128,
     dropout_rate: float = 0.2,
     l1_reg: float = 1e-5,
     l2_reg: float = 1e-4,
-    name: str = "small_residual_classifier",
+    name: str = "small_residual_mlp",
 ) -> keras.Model:
-    """Smaller residual network: width→width→width→64→32→sigmoid.
+    """Smaller residual multilayer perceptron: width→width→width→64→32→sigmoid.
 
     Used for low-dimensional inputs (batch GEX, VJ genes).
     """
