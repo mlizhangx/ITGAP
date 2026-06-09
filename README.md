@@ -9,8 +9,8 @@ ITGAP is a multimodal framework for TCR–antigen recognition prediction. CDR3 s
 |---|---|---|---|---|
 | Unsupervised NMI | **0.51** | — | 0.41 | 0.35 |
 | Random split PR-AUC (3:1) | 0.929 | **0.960** | 0.866 | 0.931 |
-| TCR-based split PR-AUC (3:1) | **0.821** | 0.845 | 0.750 | 0.717 |
-| TCR α/β split PR-AUC (3:1) | **0.895** | 0.911 | 0.782 | 0.767 |
+| TCR-based split PR-AUC (3:1) | 0.821 | **0.845** | 0.750 | 0.717 |
+| TCR α/β split PR-AUC (3:1) | 0.895 | **0.911** | 0.782 | 0.767 |
 | Clinical cohort (exact-match) | **0.801** PR-AUC | — | — | — |
 
 ---
