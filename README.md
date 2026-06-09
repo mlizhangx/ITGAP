@@ -93,7 +93,7 @@ from tcr_antigen_prediction_utils import (
     load_dataset, load_split,
     load_atchley, PositionalEmbedding, build_fit_pe_ae,
     build_ed_integration_model, fit_ed_per_split,
-    assemble_features, build_residual_classifier, compile_and_train,
+    assemble_features, build_residual_mlp, compile_and_train,
     evaluate_classifier,
 )
 
@@ -118,7 +118,7 @@ X_train, X_val, X_test = assemble_features(
     (emb_train, emb_val, emb_test),
     (pep_train, pep_val, pep_test),
 )
-model = build_residual_classifier(X_train.shape[1], name="itgap")
+model = build_residual_mlp(X_train.shape[1], name="itgap")
 compile_and_train(model, X_train, split["train_labels"], X_val, split["val_labels"])
 metrics = evaluate_classifier(model, X_test, split["test_labels"])
 print(metrics)  # {"roc_auc": ..., "pr_auc": ...}
