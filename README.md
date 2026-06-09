@@ -21,10 +21,10 @@ This repository covers the supervised prediction pipeline. Unsupervised embeddin
 
 | File | Description |
 |---|---|
-| `tcr_antigen_prediction_utils.py` | All reusable functions: sequence encoding, autoencoders, ED model, classifiers |
-| `tcr_beta_prediction_notebook.ipynb` | CDR3β-only prediction — `random_split` / `tcr_split` |
-| `tcr_alpha_beta_prediction_notebook.ipynb` | CDR3α + CDR3β prediction — `random_split` / `tcr_ab_split` |
 | `requirements.txt` | Python package versions |
+| `10x/tcr_antigen_prediction_utils.py` | All reusable functions: sequence encoding, autoencoders, ED model, classifiers |
+| `10x/tcr_beta_prediction_notebook.ipynb` | CDR3β-only prediction — `random_split` / `tcr_split` |
+| `10x/tcr_alpha_beta_prediction_notebook.ipynb` | CDR3α + CDR3β prediction — `random_split` / `tcr_ab_split` |
 | `10x/negative_sampling_tool.py` | Generates synthetic negative TCR-peptide pairs from the 10x benchmark |
 | `10x/data_preparation_notebook.ipynb` | End-to-end data preparation: negative sampling + train/val/test splits |
 | `10x/data/` | Pre-generated datasets, split indices, and supporting embedding files |
@@ -47,7 +47,14 @@ pip install -r requirements.txt
 
 ### Reproducing paper results
 
-Open either notebook in JupyterLab and set the config variables in Section 1:
+All notebooks and code are in the `10x/` folder. Open either prediction notebook from there:
+
+```bash
+cd 10x
+jupyter lab tcr_beta_prediction_notebook.ipynb
+```
+
+Set the config variables in Section 1:
 
 ```python
 NEG_RATIO  = "3_1"        # "3_1" or "5_1"

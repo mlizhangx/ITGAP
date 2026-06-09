@@ -41,9 +41,9 @@ from tensorflow.keras import layers
 
 def load_dataset(
     neg_ratio: str = "3_1",
-    h5ad_path: str = "./10x/data/merge_gex_all_donors_all_peptides_meta.h5ad",
-    batch_gex_path: str = "./10x/data/batch_gex/10X_data_pca_harmony_batch_correction_by_donor_embeddings.csv",
-    vj_path: str = "./10x/data/vj_genes/vj_beta_spectral_embeddings.csv",
+    h5ad_path: str = "./data/merge_gex_all_donors_all_peptides_meta.h5ad",
+    batch_gex_path: str = "./data/batch_gex/10X_data_pca_harmony_batch_correction_by_donor_embeddings.csv",
+    vj_path: str = "./data/vj_genes/vj_beta_spectral_embeddings.csv",
     output_dir: str = None,
 ) -> dict:
     """Load all data sources needed for TCR-antigen prediction.
@@ -57,7 +57,7 @@ def load_dataset(
     (see README). If the file is absent, gex and alpha-chain columns will be unavailable.
     """
     if output_dir is None:
-        output_dir = Path(f"./10x/data/neg_ratio_{neg_ratio}")
+        output_dir = Path(f"./data/neg_ratio_{neg_ratio}")
     else:
         output_dir = Path(output_dir)
 
@@ -201,7 +201,7 @@ def create_random_splits(ref_data, labels, output_dir, n_runs: int = 5,
 # Atchley / Positional Encoding
 # =============================================================================
 
-def load_atchley(atchley_path: str = "./10x/data/atchley.txt"):
+def load_atchley(atchley_path: str = "./data/atchley.txt"):
     """Load Atchley factors.
 
     Returns (word_vectors, index_aa_converter) where
