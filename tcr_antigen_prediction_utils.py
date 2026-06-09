@@ -41,9 +41,9 @@ from tensorflow.keras import layers
 
 def load_dataset(
     neg_ratio: str = "3_1",
-    h5ad_path: str = "./data/merge_gex_all_donors_all_peptides_meta.h5ad",
-    batch_gex_path: str = "10X_data_pca_harmony_batch_correction_by_donor_embeddings.csv",
-    vj_path: str = "vj_beta_spectral_embeddings.csv",
+    h5ad_path: str = "./10x/data/merge_gex_all_donors_all_peptides_meta.h5ad",
+    batch_gex_path: str = "./10x/data/batch_gex/10X_data_pca_harmony_batch_correction_by_donor_embeddings.csv",
+    vj_path: str = "./10x/data/vj_genes/vj_beta_spectral_embeddings.csv",
     output_dir: str = None,
 ) -> dict:
     """Load all data sources needed for TCR-antigen prediction.
@@ -51,15 +51,17 @@ def load_dataset(
     Returns a dict with keys:
         ref_data, ref_merged, gex, batch_gex,
         ref_data_alpha_beta, vj_genes, labels, output_dir
+
+    Note: h5ad_path is only required to extract raw GEX and alpha-chain sequences.
+    It is not included in the repository due to file size; download from 10x Genomics
+    (see README). If the file is absent, gex and alpha-chain columns will be unavailable.
     """
     if output_dir is None:
-        output_dir = Path(f"output/experiments/neg_ratio_{neg_ratio}/")
+        output_dir = Path(f"./10x/data/neg_ratio_{neg_ratio}")
     else:
         output_dir = Path(output_dir)
 
-    ref_data = pd.read_csv(
-        f"{output_dir}/merged_embeddings/smart_aligned_v2_dataset_reference.csv"
-    )
+    ref_data = pd.read_csv(f"{output_dir}/combined_tcr_peptide_dataset.csv")
 
     adata = sc.read_h5ad(h5ad_path)
 
@@ -149,11 +151,10 @@ def load_split(
     split_type: "random_split" | "tcr_split" | "tcr_ab_split"
     run: integer 1-5
     """
-    output_dir = Path(output_dir)
-    prefix = f"{output_dir}/merged_embeddings/smart_aligned_v2"
-    train_indices = np.load(f"{prefix}_train_indices_{split_type}_{run}.npy")
-    val_indices   = np.load(f"{prefix}_val_indices_{split_type}_{run}.npy")
-    test_indices  = np.load(f"{prefix}_test_indices_{split_type}_{run}.npy")
+    idx_dir = Path(output_dir) / "split_indices"
+    train_indices = np.load(idx_dir / f"train_indices_{split_type}_{run}.npy")
+    val_indices   = np.load(idx_dir / f"val_indices_{split_type}_{run}.npy")
+    test_indices  = np.load(idx_dir / f"test_indices_{split_type}_{run}.npy")
 
     print(f"split={split_type}  run={run}  |  "
           f"train={len(train_indices):,}  val={len(val_indices):,}  test={len(test_indices):,}")
@@ -170,12 +171,12 @@ def create_random_splits(ref_data, labels, output_dir, n_runs: int = 5,
     """Generate n_runs stratified random train/val/test splits and save index files.
 
     Useful for running the pipeline on a new dataset. Splits are saved to
-    {output_dir}/merged_embeddings/ using the standard naming convention so that
+    {output_dir}/split_indices/ using the standard naming convention so that
     load_split() can read them directly with split_type="random_split".
     """
     output_dir = Path(output_dir)
-    (output_dir / "merged_embeddings").mkdir(parents=True, exist_ok=True)
-    base = output_dir / "merged_embeddings" / "smart_aligned_v2"
+    idx_dir = output_dir / "split_indices"
+    idx_dir.mkdir(parents=True, exist_ok=True)
 
     all_idx = np.arange(len(ref_data))
     for run in range(1, n_runs + 1):
@@ -189,18 +190,18 @@ def create_random_splits(ref_data, labels, output_dir, n_runs: int = 5,
             temp_idx, test_size=relative_test,
             stratify=labels[temp_idx], random_state=seed,
         )
-        np.save(f"{base}_train_indices_random_split_{run}.npy", train_idx)
-        np.save(f"{base}_val_indices_random_split_{run}.npy",   val_idx)
-        np.save(f"{base}_test_indices_random_split_{run}.npy",  test_idx)
+        np.save(idx_dir / f"train_indices_random_split_{run}.npy", train_idx)
+        np.save(idx_dir / f"val_indices_random_split_{run}.npy",   val_idx)
+        np.save(idx_dir / f"test_indices_random_split_{run}.npy",  test_idx)
         print(f"run={run}  train={len(train_idx):,}  val={len(val_idx):,}  test={len(test_idx):,}")
-    print(f"Saved {n_runs} random splits → {output_dir}/merged_embeddings/")
+    print(f"Saved {n_runs} random splits → {output_dir}/split_indices/")
 
 
 # =============================================================================
 # Atchley / Positional Encoding
 # =============================================================================
 
-def load_atchley(atchley_path: str = "./data/atchley.txt"):
+def load_atchley(atchley_path: str = "./10x/data/atchley.txt"):
     """Load Atchley factors.
 
     Returns (word_vectors, index_aa_converter) where

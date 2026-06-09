@@ -25,6 +25,9 @@ This repository covers the supervised prediction pipeline. Unsupervised embeddin
 | `tcr_beta_prediction_notebook.ipynb` | CDR3β-only prediction — `random_split` / `tcr_split` |
 | `tcr_alpha_beta_prediction_notebook.ipynb` | CDR3α + CDR3β prediction — `random_split` / `tcr_ab_split` |
 | `requirements.txt` | Python package versions |
+| `10x/negative_sampling_tool.py` | Generates synthetic negative TCR-peptide pairs from the 10x benchmark |
+| `10x/data_preparation_notebook.ipynb` | End-to-end data preparation: negative sampling + train/val/test splits |
+| `10x/data/` | Pre-generated datasets, split indices, and supporting embedding files |
 
 ---
 
@@ -55,6 +58,17 @@ USE_VJ     = False        # True to include V/J gene spectral embeddings
 
 Run all cells. Each notebook trains three models in sequence: Batch GEX + Peptide, TCR + Peptide, and ED (GEX → TCR) + Peptide. Sequence embeddings and ED latents are cached to disk on first run and reloaded automatically thereafter.
 
+### Reproducing the data preparation
+
+The `10x/data/` folder contains pre-generated datasets so the prediction notebooks run without this step. To reproduce the datasets from scratch or adapt the pipeline to a new dataset, open `10x/data_preparation_notebook.ipynb` (run from the `10x/` directory):
+
+```bash
+cd 10x
+jupyter lab data_preparation_notebook.ipynb
+```
+
+Place `data/merge_gex_all_donors_all_peptides_meta.h5ad` in `10x/data/` before running (download from 10x Genomics; not in the repo due to file size).
+
 ### Generating splits for a new dataset
 
 To generate split index files for your own data:
@@ -63,18 +77,6 @@ To generate split index files for your own data:
 from tcr_antigen_prediction_utils import create_random_splits
 
 create_random_splits(ref_data, labels, output_dir="./output/", n_runs=5)
-```
-
-For TCR-grouped splits (no CDR3β overlap between train and test):
-
-```python
-from sklearn.model_selection import GroupShuffleSplit
-import numpy as np
-
-gss = GroupShuffleSplit(n_splits=5, test_size=0.30, random_state=42)
-for run, (train_idx, test_idx) in enumerate(gss.split(ref_data, groups=ref_data["tcr"]), start=1):
-    np.save(f"output/tcr_split/run{run}_train.npy", train_idx)
-    np.save(f"output/tcr_split/run{run}_test.npy",  test_idx)
 ```
 
 ### Using the utility functions directly
@@ -128,7 +130,7 @@ print(metrics)  # {"roc_auc": ..., "pr_auc": ...}
 
 ## Data
 
-- **10x Genomics benchmark** — 145,479 CD8+ T cells, 4 donors, 9 pMHC-validated peptides: publicly available from 10x Genomics.
+- **10x Genomics benchmark** — 145,479 CD8+ T cells, 4 donors, 9 pMHC-validated peptides: publicly available from 10x Genomics. Pre-processed files are in `10x/data/`; the raw `.h5ad` (~200 MB) is not in the repository — download and place at `10x/data/merge_gex_all_donors_all_peptides_meta.h5ad` to run `10x/data_preparation_notebook.ipynb`.
 - **Neoadjuvant CD40 agonism cohort** — 16,286 T cells, E/GEJ cancer patients: [GSE244748](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE244748).
 
 ---
