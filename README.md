@@ -17,17 +17,30 @@ ITGAP is a multimodal framework for TCR–antigen recognition prediction. CDR3 s
 
 ## Repository Contents
 
-This repository covers the supervised prediction pipeline. Unsupervised embedding analyses and clinical application code are maintained separately.
-
-| File | Description |
+| File / Folder | Description |
 |---|---|
 | `requirements.txt` | Python package versions |
+| **`10x/`** | **Supervised antigen prediction on the 10x Genomics benchmark** |
 | `10x/tcr_antigen_prediction_utils.py` | Utility functions: sequence encoding, autoencoders, ED model, classifiers |
 | `10x/tcr_beta_prediction_notebook.ipynb` | CDR3β-only prediction — `random_split` / `tcr_split` |
 | `10x/tcr_alpha_beta_prediction_notebook.ipynb` | CDR3α + CDR3β prediction — `random_split` / `tcr_ab_split` |
 | `10x/negative_sampling_tool.py` | Generates synthetic negative TCR-peptide pairs from the 10x benchmark |
 | `10x/data_preparation_notebook.ipynb` | Data preparation: negative sampling + train/val/test splits |
 | `10x/data/` | Pre-generated datasets, split indices, and supporting embedding files |
+| **`Clustering_10X/`** | **Unsupervised clustering analysis on the 10x Genomics benchmark** |
+| `Clustering_10X/Integration_embedding/` | Encoder-decoder integration notebooks that map GEX to CDR3β/α latent space per donor combination; produces the joint GEX–TCR embeddings used for clustering |
+| `Clustering_10X/Clustering_codes/` | Clustering notebooks (per-donor and all-donor) applied to the integrated embeddings; generates peptide-specific cluster assignments |
+| `Clustering_10X/mvTCR_TESSA_embedding_code/` | Scripts for generating mvTCR and Tessa embeddings used in clustering comparisons |
+| **`Real_case_codes/`** | **Clinical translation — neoadjuvant CD40 agonism cohort (GSE244748)** |
+| `Real_case_codes/Apexigen_data_clean.ipynb` | Data cleaning and preprocessing for the clinical cohort |
+| `Real_case_codes/Apexigen_batch_correction.ipynb` | Batch correction of gene expression across clinical samples |
+| `Real_case_codes/Apexigen_integration_EDA_biology.ipynb` | Integration, exploratory analysis, and biological interpretation of GEX–TCR embeddings in the clinical cohort |
+| `Real_case_codes/Loss_peptide_AE_Apexigen_*.ipynb` | Peptide autoencoder training on the extended antigen database (IEDB + McPAS + VDJdb) |
+| `Real_case_codes/Loss_MAE_*.ipynb` | ED model training and split index generation for the clinical cohort |
+| `Real_case_codes/Prediction_models_Apexigen_*.ipynb` | Antigen prediction using ITGAP applied to the clinical cohort |
+| `Real_case_codes/barplot_predicted_peptide_TCR*.ipynb` | Visualization of predicted TCR–peptide pairs by pathology and treatment response |
+| `Real_case_codes/Plot_network_prediction.Rmd` | R script for network-based visualization of predicted TCR–antigen interactions |
+| `Real_case_codes/*.h5` | Pre-trained ITGAP model weights for the clinical cohort application |
 
 ---
 
@@ -151,8 +164,8 @@ Models 4 and 5 in the prediction notebooks benchmark against two published TCR r
 
 | Tool | Repository | Reference |
 |---|---|---|
-| mvTCR | [SchubertLab/mvTCR](https://github.com/SchubertLab/mvTCR) | Drost *et al.* |
-| Tessa | [jcao89757/TESSA](https://github.com/jcao89757/TESSA) | Zhang *et al.* |
+| mvTCR | [SchubertLab/mvTCR](https://github.com/SchubertLab/mvTCR) | Drost F. *et al.* Multi-modal generative modeling for joint analysis of single-cell T cell receptor and gene expression data. *Nat Commun* **15**, 5577 (2024). |
+| Tessa | [jcao89757/TESSA](https://github.com/jcao89757/TESSA) | Zhang Z. *et al.* Mapping the functional landscape of T cell receptor repertoires by single-T cell transcriptomics. *Nat Methods* **18**, 92–99 (2021). |
 
 To reproduce the mvTCR and Tessa benchmark results, follow each tool's installation and usage instructions to generate TCR embeddings on the 10x Genomics dataset splits, then place the output CSVs in the expected paths under `10x/data/neg_ratio_{NEG_RATIO}/merged_embeddings/`:
 
