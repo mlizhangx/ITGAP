@@ -387,7 +387,7 @@ def build_fit_pe_ae(
 ):
     """Encode sequences with PE then compress with an autoencoder.
 
-    Fits a separate AE on each split (train, val, test) as in the original notebook.
+    Fits a separate AE on each split (train, val, test).
     Returns (emb_train, emb_val, emb_test) each of shape (N, latent_dim).
 
     If save_paths is provided (dict with "train", "val", "test" → file paths) and all
@@ -470,7 +470,6 @@ def fit_ed_per_split(
 ):
     """Fit the ED model independently on train, val, test and extract latent embeddings.
 
-    This mirrors the original notebook's per-split refitting (cells 136–143).
     Returns (emb_train, emb_val, emb_test).
 
     If save_paths is provided (dict with "train", "val", "test" → file paths) and all
