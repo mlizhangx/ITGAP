@@ -22,11 +22,11 @@ This repository covers the supervised prediction pipeline. Unsupervised embeddin
 | File | Description |
 |---|---|
 | `requirements.txt` | Python package versions |
-| `10x/tcr_antigen_prediction_utils.py` | All reusable functions: sequence encoding, autoencoders, ED model, classifiers |
+| `10x/tcr_antigen_prediction_utils.py` | Utility functions: sequence encoding, autoencoders, ED model, classifiers |
 | `10x/tcr_beta_prediction_notebook.ipynb` | CDR3β-only prediction — `random_split` / `tcr_split` |
 | `10x/tcr_alpha_beta_prediction_notebook.ipynb` | CDR3α + CDR3β prediction — `random_split` / `tcr_ab_split` |
 | `10x/negative_sampling_tool.py` | Generates synthetic negative TCR-peptide pairs from the 10x benchmark |
-| `10x/data_preparation_notebook.ipynb` | End-to-end data preparation: negative sampling + train/val/test splits |
+| `10x/data_preparation_notebook.ipynb` | Data preparation: negative sampling + train/val/test splits |
 | `10x/data/` | Pre-generated datasets, split indices, and supporting embedding files |
 
 ---
