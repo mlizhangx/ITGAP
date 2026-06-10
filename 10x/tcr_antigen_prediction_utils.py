@@ -417,6 +417,7 @@ def build_fit_pe_ae(
     emb_test = get_latent_embeddings(ae, X_test, batch_size=64)
 
     if save_paths:
+        Path(save_paths["train"]).parent.mkdir(parents=True, exist_ok=True)
         np.save(save_paths["train"], emb_train)
         np.save(save_paths["val"],   emb_val)
         np.save(save_paths["test"],  emb_test)
@@ -499,6 +500,7 @@ def fit_ed_per_split(
     emb_test = latent_extractor.predict(X_test, batch_size=32, verbose=0)
 
     if save_paths:
+        Path(save_paths["train"]).parent.mkdir(parents=True, exist_ok=True)
         np.save(save_paths["train"], emb_train)
         np.save(save_paths["val"],   emb_val)
         np.save(save_paths["test"],  emb_test)
