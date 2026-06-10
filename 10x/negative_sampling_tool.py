@@ -242,7 +242,7 @@ class NegativeSamplingTool:
         n_valid_positives = len(positive_pairs)
         n_all_tcrs = len(all_tcrs)
         n_nonvalid_tcrs = (~valid_mask).sum()
-        large_population_size = n_all_tcrs * k_multiplier
+        large_population_size = n_all_tcrs * k_multiplier  # cell-level pairs
 
         print(f"\n    Valid positive TCRs: {n_valid_positives:,}")
         print(f"    Non-valid TCRs (no peptide): {n_nonvalid_tcrs:,}")
@@ -271,6 +271,7 @@ class NegativeSamplingTool:
         if effective_k < k_multiplier:
             print(f"    Note: k_multiplier capped at {effective_k} (= number of unique peptides)")
 
+        # Sequence-level positive set: exclude any cell whose CDR3 sequence is a known binder
         positive_set = set(zip(positive_pairs['tcr'], positive_pairs['peptide']))
         print(f"    Unique positive pairs for collision checking: {len(positive_set):,}")
 
@@ -312,9 +313,10 @@ class NegativeSamplingTool:
             for _ in range(effective_k):
                 peptide_instance = peptide_instances[np.random.randint(len(peptide_instances))]
                 peptide_seq = peptide_instance['sequence']
-                pair = (tcr_seq, peptide_seq)
+                seq_pair  = (tcr_seq, peptide_seq)                           # for positive exclusion
+                cell_pair = (tcr_info['source_embedding_index'], peptide_seq) # for uniqueness
 
-                if pair not in positive_set and pair not in negative_pair_set:
+                if seq_pair not in positive_set and cell_pair not in negative_pair_set:
                     large_negative_population.append({
                         'tcr': tcr_seq,
                         'peptide': peptide_seq,
@@ -325,7 +327,7 @@ class NegativeSamplingTool:
                         'peptide_source_index': peptide_instance['source_embedding_index'],
                         'binding_tcr': 'Y' if is_binding else 'N'
                     })
-                    negative_pair_set.add(pair)
+                    negative_pair_set.add(cell_pair)
                     if is_binding:
                         successes_binding += 1
                     else:
@@ -402,7 +404,7 @@ class NegativeSamplingTool:
         else:
             final_negatives_df = (
                 large_population
-                .drop_duplicates(subset=["tcr", "peptide"])
+                .drop_duplicates(subset=["tcr_source_index", "peptide"])
                 .sample(n=final_negatives_size, replace=False, random_state=self.random_seed)
                 .copy()
             )
