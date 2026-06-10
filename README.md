@@ -63,7 +63,15 @@ RUN        = 1            # 1–5
 USE_VJ     = False        # True to include V/J gene spectral embeddings
 ```
 
-Run all cells. Each notebook trains three models in sequence: Batch GEX + Peptide, TCR + Peptide, and ED (GEX → TCR) + Peptide. Sequence embeddings and ED latents are cached to disk on first run and reloaded automatically thereafter.
+Run all cells. Each notebook trains five models in sequence:
+
+1. **Batch GEX + Peptide** — GEX baseline
+2. **TCR + Peptide** — sequence-only baseline
+3. **ED (GEX → TCR) + Peptide** — ITGAP integration model (V/J genes optional)
+4. **mvTCR + Peptide** — requires pre-computed mvTCR embeddings (see [Third-party Benchmarks](#third-party-benchmarks))
+5. **Tessa + Peptide** — requires pre-computed Tessa embeddings (see [Third-party Benchmarks](#third-party-benchmarks))
+
+Sequence embeddings and ED latents are cached to disk on first run and reloaded automatically thereafter. Models 4 and 5 load pre-computed embedding CSVs from `data/neg_ratio_{NEG_RATIO}/merged_embeddings/`.
 
 ### Reproducing the data preparation
 
@@ -132,6 +140,31 @@ print(metrics)  # {"roc_auc": ..., "pr_auc": ...}
 | Batch-corrected GEX | CSV | cells × PCs, row-indexed by `tcr_source_index` |
 | AnnData | `.h5ad` | used for donor metadata |
 | V/J embeddings *(optional)* | CSV | row-indexed by `tcr_source_index` |
+| mvTCR embeddings *(optional, Models 1–3 only without)* | CSV | latent dimensions; one file per train/val/test split |
+| Tessa embeddings *(optional, Models 1–3 only without)* | CSV | latent dimensions + `contig_id` column; one file per train/val/test split |
+
+---
+
+## Third-party Benchmarks
+
+Models 4 and 5 in the prediction notebooks benchmark against two published TCR representation tools. We used their public repositories to generate embeddings on our dataset, then used those embeddings as input to ITGAP's classifiers.
+
+| Tool | Repository | Reference |
+|---|---|---|
+| mvTCR | [SchubertLab/mvTCR](https://github.com/SchubertLab/mvTCR) | Drost *et al.* |
+| Tessa | [jcao89757/TESSA](https://github.com/jcao89757/TESSA) | Zhang *et al.* |
+
+To reproduce the mvTCR and Tessa benchmark results, follow each tool's installation and usage instructions to generate TCR embeddings on the 10x Genomics dataset splits, then place the output CSVs in the expected paths under `10x/data/neg_ratio_{NEG_RATIO}/merged_embeddings/`:
+
+```
+merged_embeddings/
+├── mvTCR_integration_res/
+│   └── 10X_mvTCR_embedding_integration_latent_best_reconstruction_metric_smart_aligned_v2_{train|val|test}_indices_{SPLIT_TYPE}_{RUN}.csv
+└── Tessa_integration_res/
+    └── res_10X_TCR_emb_smart_aligned_v2_{train|val|test}_indices_{SPLIT_TYPE}_{RUN}.csv  # includes a 'contig_id' column (dropped automatically)
+```
+
+ITGAP's prediction notebooks load these files automatically when running Sections 8 and 9.
 
 ---
 
